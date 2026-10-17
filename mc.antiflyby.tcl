@@ -1,14 +1,14 @@
 ##
-# Anti Flyby v1.1 by by MC_8 - Carl M. Gregory <gregory@worldinter.net>
+# Anti Flyby v1.1.1 by by MC_8 - Carl M. Gregory <gregory@worldinter.net>
 #  This script will only work on eggdrop 1.5+ series.
+#
+# If you have any questions/comments/idea's, please email me!
+# ( Include the script name and version in the title, if you do email me. )
 #
 # My SVS Website - http://mc.purehype.net/
 ##
 
 ##
-# This script plus alot of other mc.* scripts are best found at
-# http://bseen.tclslave.net/
-#
 # This script is used to ban people that anoyingly do flyby's aka
 # revolving door aka they join then part the channel within several
 # seconds.
@@ -17,6 +17,12 @@
 ##
 # History
 ##
+# v1.1.1 (06.10.01)
+#  MC_8 - HTH - Problem with bantype's greater than 9.
+#  MC_8 - anonymous - Rewrote the nick filtering system, was still getting problems
+#                     with special charactered nicks.
+#  MC_8 - Rewrote the masktype procedure a little bit, expected bugs.
+#
 # v1.1 (03.06.01)
 #  MC_8 - Strydor - Fixed special character problems with nicks (simular to Grafx-man's
 #                   findings.
@@ -81,6 +87,7 @@ set mc_afb(msg) "You have been baned from %chan for doing a flyby.  The ban will
 # ban list.
 set mc_afb(reason) "Anti Flyby"
 
+
 ## MC SVS (Script Version Server) v1.2 ##
 # Do you want the bot to connection to MC_8's SVS to see if there are newer versions
 # of this script avilable?  It will only tell you -- It's up to you to get the newest
@@ -115,8 +122,8 @@ set mc_afb(svs:stableonly) 0
 ##
 # Coding 
 ##
-set mc_afb(version) v1.1
-set mc_afb(svs:script) "antiflyby 001001000000"
+set mc_afb(version) v1.1.1
+set mc_afb(svs:script) "antiflyby 001001001000"
 set mc_afb(svs:server) "mc.purehype.net 8085"
 
 if {$numversion < "1050000"} {
@@ -129,36 +136,33 @@ if {$numversion < "1050000"} {
 bind join - * mc:afb:join
 proc mc:afb:join {nick uhost hand chan} {
  global mc_afb;set chan [string tolower $chan]
- if {[matchattr $hand $mc_afb(exempt) $chan]} {return}
- foreach info [channel info $chan] {
-  if {[lindex $info 0] == "antiflyby"} {if {![set flyby [lindex $info 1]]} {return};break}
- };set mc_afb(![mc:afb:filt $nick:$chan]) 1;utimer $flyby "unset mc_afb(![mc:afb:filt [mc:afb:filt $nick:$chan]])"
+ if {[matchattr $hand $mc_afb(exempt) $chan] ||
+     ![set flyby [mc:afb:chanintinfo $chan antiflyby]]} {return 0}
+ set mc_afb(!$nick:$chan) 1
+ utimer $flyby "catch {unset mc_afb(![mc:afb:filt $nick:$chan])}"
 }
 
 bind part - * mc:afb:part
 proc mc:afb:part {nick uhost hand chan {msg ""}} {
  global mc_afb;set chan [string tolower $chan]
- if {![info exists mc_afb(![mc:afb:filt $nick:$chan])]} {return}
- foreach info [channel info $chan] {
-  if {[lindex $info 0] == "antiflyby"} {if {![set flyby [lindex $info 1]]} {return};break}
- };unset mc_afb(![mc:afb:filt [mc:afb:filt $nick:$chan]]);mc:afb:inter:punish $nick $uhost $chan
+ if {![info exists mc_afb(!$nick:$chan)] ||
+     ![mc:afb:chanintinfo $chan antiflyby]} {return 0}
+ catch {unset mc_afb(!$nick:$chan)};mc:afb:inter:punish $nick $uhost $chan
 }
 
 bind nick - * mc:afb:nick
 proc mc:afb:nick {nick uhost hand chan newnick} {
  global mc_afb;set chan [string tolower $chan]
- if {![info exists mc_afb(![mc:afb:filt $nick:$chan])]} {return}
- foreach info [channel info $chan] {
-  if {[lindex $info 0] == "antiflyby"} {if {![set flyby [lindex $info 1]]} {return};break}
- }
+ if {![info exists mc_afb(!$nick:$chan)] ||
+     ![set flyby [mc:afb:chanintinfo $chan antiflyby]]} {return 0}
  foreach timer [utimers] {
-  if {[string match "*unset mc_afb(![mc:afb:filt $nick:$chan])*" $timer]} {
+  if {[string match "*unset mc_afb(!$nick:$chan)*" $timer]} {
    set flyby [lindex $timer 0];killutimer [lindex $timer 2];break
   }
  }
- set mc_afb(![mc:afb:filt $newnick:$chan]) 1
- utimer $flyby "catch {unset mc_afb(![mc:afb:filt [mc:afb:filt $newnick:$chan]])}"
- catch {unset mc_afb(![mc:afb:filt [mc:afb:filt $nick:$chan]])}
+ set mc_afb(!$newnick:$chan) 1
+ utimer $flyby "catch {unset mc_afb(![mc:afb:filt $newnick:$chan])}"
+ catch {unset mc_afb(!$nick:$chan)}
 }
 
 proc mc:afb:inter:punish {nick uhost chan} {
@@ -191,23 +195,17 @@ proc mc:afb:inter:punish {nick uhost chan} {
  }
 }
 
-proc mc:afb:inter:replace {string subs} {
- if {[llength $subs] == "1"} {set subs [lindex $subs 0]}
- for {set i 0} {[lindex $subs $i] != ""} {incr i 2} {
-  regsub -all -- [lindex $subs $i] $string [lindex $subs [expr $i+1]] string
- } ; return $string
-}
-
+## Moretools masktype
 proc mc:afb:inter:masktype {uhost type} {
  if {![string match "*!*@*.*" $uhost]} {
   set nick [lindex [split $uhost "!"] 0]
   if {$nick == ""} {
    set uhost [string range $uhost [expr [string first ! $uhost]+1] e]
    foreach chan [channels] {
-    set nick [lindex [findchanuser *$uhost* $chan] 0]
+    set nick [lindex [mc:afb:inter:findchanuser *$uhost* $chan] 0]
     if {$nick != ""} {break}
    }
-   if {$nick == ""} {set uhost $nick!} {set uhost "$nick![mc:bm:inter:gethost $nick]"}
+   if {$nick == ""} {set uhost $nick!} {set uhost "$nick![gethost $nick]"}
   }
   if {$uhost == "$nick!" || $nothing} {set type "return_nothing"}
  }
@@ -241,66 +239,66 @@ proc mc:afb:inter:masktype {uhost type} {
   }
   10 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {
-    set host [replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
+    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
     set ident [string range $uhost [expr [string first "!" $uhost]+1] [expr [string last "@" $uhost]-1]]
     set ban "*!$ident$host"
-   } {set ban [masktype $uhost 0]}
+   } {set ban [mc:afb:inter:masktype $uhost 0]}
   }
   11 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {
-    set host [replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
+    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
     set ident [string range $uhost [expr [string first "!" $uhost]+1] [expr [string last "@" $uhost]-1]]
     set ban "*!*[string trimleft $ident "~"]$host"
-   } {set ban [masktype $uhost 1]}
+   } {set ban [mc:afb:inter:masktype $uhost 1]}
   }
   12 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {
-    set host [replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
+    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
     set ban "*!*$host"
-   } {set ban [masktype $uhost 2]}
+   } {set ban [mc:afb:inter:masktype $uhost 2]}
   }
   13 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {set ban [masktype $uhost 11]} {set ban [masktype $uhost 3]}
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {set ban [mc:afb:inter:masktype $uhost 11]} {set ban [mc:afb:inter:masktype $uhost 3]}
   }
   14 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {set ban [masktype $uhost 12]} {set ban [masktype $uhost 4]}
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {set ban [mc:afb:inter:masktype $uhost 12]} {set ban [mc:afb:inter:masktype $uhost 4]}
   }
   15 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {
-    set host [replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
+    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
     set rest [string range $uhost 0 [expr [string last "@" $uhost]-1]]
     set ban $rest$host
-   } {set ban [masktype $uhost 5]}
+   } {set ban [mc:afb:inter:masktype $uhost 5]}
   }
   16 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {
-    set host [replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
+    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
     set rest "[string range $uhost 0 [expr [string first "!" $uhost]-1]]!*[string trimleft [string range $uhost [expr [string first "!" $uhost]+1] [expr [string last "@" $uhost]-1]] "~"]"
     set ban $rest$host
-   } {set ban [masktype $uhost 6]}
+   } {set ban [mc:afb:inter:masktype $uhost 6]}
   }
   17 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {
-    set host [replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
+    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
     set rest "[string range $uhost 0 [expr [string first "!" $uhost]-1]]!*"
     set ban $rest$host 
-   } {set ban [masktype $uhost 7]}
+   } {set ban [mc:afb:inter:masktype $uhost 7]}
   }
   18 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {set ban [masktype $uhost 16]} {set ban [masktype $uhost 8]}
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {set ban [mc:afb:inter:masktype $uhost 16]} {set ban [mc:afb:inter:masktype $uhost 8]}
   }
   19 {
    set host [string range $uhost [string last "@" $uhost] e]
-   if {[findip [string range $host 1 e]] == "0"} {set ban [masktype $uhost 17]} {set ban [masktype $uhost 9]}
+   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {set ban [mc:afb:inter:masktype $uhost 17]} {set ban [mc:afb:inter:masktype $uhost 9]}
   }
   return_nothing {set ban ""}
   default {set ban "*!*[string range $uhost [string first "@" $uhost] e]"}
@@ -315,21 +313,102 @@ proc mc:afb:inter:masktype {uhost type} {
   set _host *[string trimleft $temp *]
  } ; return $_nick!$_ident@$_host
 }
+proc mc:afb:inter:replace {string subs} {
+ if {[llength $subs] == "1"} {set subs [lindex $subs 0]}
+ for {set i 0} {[lindex $subs $i] != ""} {incr i 2} {
+  regsub -all -- [lindex $subs $i] $string [lindex $subs [expr $i+1]] string
+ } ; return $string
+}
+proc mc:afb:inter:findchanuser {hostmask channel} {
+ if {![validchan $channel]} {return -code error "no such channel record"} ; set buffer ""
+ set hostmask [string tolower $hostmask]
+ foreach user [chanlist $channel] {
+  if {[string match $hostmask [string tolower $user![getchanhost $user $channel]]]} {
+   append buffer " $user"
+  }
+ };return [string range $buffer] 1 e]
+}
+proc mc:afb:inter:findip {args} {
+ catch {unset mc_found_ip}
+ if {![string match *.*.*.* $args]} {return 0}
+ foreach arg $args {
+  if {[string match *.*.*.* $arg]} {
+   set mc_testa [split $arg "."] ; set i 0
+   while {[llength $mc_testa] != $i} {
+    set mc_test [lrange $mc_testa $i end]
+    if {[string length [lindex $mc_test 1]]<4 && [string length [lindex $mc_test 2]]<4} {
+     if {[lindex $mc_test 1] < 256 && [lindex $mc_test 2] < 256 && [lindex $mc_test 1] >= 0 && [lindex $mc_test 2] >= 0} {
+      set first "abcdefghi"
+      if {[string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 1]] <= 9 && [string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 1]] >= 0} {
+       set first [string range [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 1] end]
+       if {[string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 2]] <= 9 && [string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 2]] >= 0} {
+        set first [string range [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 2] end]
+        if {[string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 3]] <= 9 && [string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 3]] >= 0} {
+         set first [string range [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 3] end]
+        }
+       }
+      }
+      set second [lindex $mc_test 1] ; set third [lindex $mc_test 2] ; set fourth "abcdefghi"
+      if {[string index [lindex $mc_test 3] 0] <= 9 && [string index [lindex $mc_test 3] 0] >= 0} {
+       set fourth [string index [lindex $mc_test 3] 0]
+       if {[string index [lindex $mc_test 3] 1] <= 9 && [string index [lindex $mc_test 3] 1] >= 0} {
+        set fourth $fourth[string index [lindex $mc_test 3] 1]
+        if {[string index [lindex $mc_test 3] 2] <= 9 && [string index [lindex $mc_test 3] 2] >= 0} {
+         set fourth $fourth[string index [lindex $mc_test 3] 2]
+        }
+       }
+      }
+      if {($first < 256) && ($second < 256) && ($third < 256) &&
+          ($fourth < 256) && ($first > 0) && ($second > 0) &&
+          ($third > 0) && ($fourth > 0) && ([string index $first 0] > 0) &&
+          ([string index $second 0] > 0) && ([string index $third 0] > 0) &&
+          ([string index $fourth 0] > 0)} {
+       if {[info exists mc_found_ip]} {
+        set mc_found_ip "$mc_found_ip $first.$second.$third.$fourth"
+       } {set mc_found_ip $first.$second.$third.$fourth}
+      }
+     }
+    } ; incr i +1
+   }
+  }
+ } ; if {[info exists mc_found_ip]} {return $mc_found_ip} {return 0}
+}
+## ^
 
+## sindex procedures (by MC_8 & guppy)
+proc mc:afb:slength {str} {return [llength $str]}
+proc mc:afb:sindex {str index} {return [lindex [split $str] $index]}
+proc mc:afb:srange {str s e} {return [lrange [split $str] $s $e]}
 proc mc:afb:filt {data} {
- regsub -all -- \\\\ $data \\\\\\\\ data ; regsub -all -- \\\[ $data \\\\\[ data ; regsub -all -- \\\] $data \\\\\] data
- regsub -all -- \\\} $data \\\\\} data ; regsub -all -- \\\{ $data \\\\\{ data ; regsub -all -- \\\" $data \\\\\" data ; return $data
+ return [join [split [join [split [join [split [join [split [join [split [join [split $data \\] \\\\] \[] \\\[] \]] \\\]] \}] \\\}] \{] \\\{] \"] \\\"]
+}
+proc mc:afb:unfilt {data} {
+ regsub -all -- \\\\\\\[ $data \[ data;regsub -all -- \\\\\\\] $data \] data;regsub -all -- \\\\\\\} $data \} data
+ regsub -all -- \\\\\\\{ $data \{ data;regsub -all -- \\\\\\\" $data \" data;regsub -all -- \\\\\\\\ $data \\ data;return $data
+}
+## sindex end
+
+proc mc:afb:chanflagison {chan flag} {
+ foreach info [string tolower [channel info [string tolower $chan]]] {
+  if {[string range $info 1 e] == [string tolower $flag]} {
+   if {[string index $info 0] == "-"} {
+    return 0
+   } elseif {[string index $info 0] == "+"} {
+    return 1
+   } else {return 2}
+  }
+ };return -1
 }
 
-proc mc:afb:unfilt {data} {
- regsub -all -- \\\\\\\\ $data \\ data
- regsub -all -- \\\\\\\[ $data \[ data
- regsub -all -- \\\\\\\] $data \] data
- regsub -all -- \\\\\} $data \} data
- regsub -all -- \\\\\{ $data \{ data
- regsub -all -- \\\\\" $data \" data
- return $data
+## chanintinfo
+proc mc:afb:chanintinfo {chan flag} {
+ foreach info [string tolower [channel info $chan]] {
+  if {[lindex $info 0] == [string tolower $flag]} {
+   return [mc:limit:srange $info 1 e]
+  }
+ };return ""
 }
+## ^
 
 if {$mc_afb(svs:enabled)} {
  if {($mc_afb(svs:check) > "23") || ($mc_afb(svs:check) < "0")} {set mc_afb(svs:check) 00}
