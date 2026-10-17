@@ -1,5 +1,5 @@
 ##
-# Anti Flyby v1.1.1 by by MC_8 - Carl M. Gregory <gregory@worldinter.net>
+# Anti Flyby v1.1.2 by by MC_8 - Carl M. Gregory <gregory@worldinter.net>
 #  This script will only work on eggdrop 1.5+ series.
 #
 # If you have any questions/comments/idea's, please email me!
@@ -17,6 +17,9 @@
 ##
 # History
 ##
+# v1.1.2 (07.02.01)
+#  MC_8 - TU - Tcl error [mc:afb:join]: invalid command name "mc:limit:srange"
+#
 # v1.1.1 (06.10.01)
 #  MC_8 - HTH - Problem with bantype's greater than 9.
 #  MC_8 - anonymous - Rewrote the nick filtering system, was still getting problems
@@ -122,8 +125,8 @@ set mc_afb(svs:stableonly) 0
 ##
 # Coding 
 ##
-set mc_afb(version) v1.1.1
-set mc_afb(svs:script) "antiflyby 001001001000"
+set mc_afb(version) v1.1.2
+set mc_afb(svs:script) "antiflyby 001001002000"
 set mc_afb(svs:server) "mc.purehype.net 8085"
 
 if {$numversion < "1050000"} {
@@ -404,7 +407,7 @@ proc mc:afb:chanflagison {chan flag} {
 proc mc:afb:chanintinfo {chan flag} {
  foreach info [string tolower [channel info $chan]] {
   if {[lindex $info 0] == [string tolower $flag]} {
-   return [mc:limit:srange $info 1 e]
+   return [mc:afb:srange $info 1 e]
   }
  };return ""
 }
