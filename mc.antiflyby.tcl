@@ -1,11 +1,11 @@
 ##
-# Anti Flyby v1.1.2 by by MC_8 - Carl M. Gregory <gregory@worldinter.net>
-#  This script will only work on eggdrop 1.5+ series.
+# Anti Flyby v2.0
+#  by MC_8 - Carl M. Gregory <mc8@purehype.net>
+#  This script will only run on eggdrop 1.5.5 or greater.
 #
-# If you have any questions/comments/idea's, please email me!
-# ( Include the script name and version in the title, if you do email me. )
-#
-# My SVS Website - http://mc.purehype.net/
+# My SVS Website - http://mc.purehype.net:81/
+# Have a bug?  http://mc.purehype.net:81/bugzilla/
+# TCL Mailing list - http://mc.purehype.net:81/maillist/
 ##
 
 ##
@@ -15,23 +15,43 @@
 ##
 
 ##
-# History
+# History  ( <Fixed by> - [Found by] - <Info> )
 ##
+# v2.0 (02.12.02)
+#  MC_8 - - Bassed the script off eggdrop's internal 'getchanjoin' 
+#           procedure, in turn removed all binds except for part.
+#  MC_8 - - Upgraded replace proc from v1.0 to v1.1.
+#  MC_8 - - Recoded the script to be more effecent and cache pro calls.
+#  MC_8 - - Added error catching system.
+#  MC_8 - - Rewrote findchanuser proc and changed it's name to getnick.
+#  MC_8 - - Added a central list proc.
+#  MC_8 - - Reworte join, part, nick, and punish procs.
+#  MC_8 - - Rewrote filt proc (text filtering procedure).
+#  MC_8 - - Reworte chanintinfo proc and changed it's name to chanint.
+#  MC_8 - - Removed now unused findip, replace, slength, sindex, srange
+#           chanflagison, and unfilt procs.
+#  MC_8 - - Rewrote the masktype proc (ban masking procedure).
+#  MC_8 - - Changed channel int set from antiflyby to mc.antiflyby.
+#  MC_8 - - Upgraded SVS from v1.2 to v2.0.
+#
 # v1.1.2 (07.02.01)
-#  MC_8 - TU - Tcl error [mc:afb:join]: invalid command name "mc:limit:srange"
+#  MC_8 - TU - Tcl error [mc:afb:join]: invalid command name 
+#              "mc:limit:srange"
 #
 # v1.1.1 (06.10.01)
-#  MC_8 - HTH - Problem with bantype's greater than 9.
-#  MC_8 - anonymous - Rewrote the nick filtering system, was still getting problems
-#                     with special charactered nicks.
-#  MC_8 - Rewrote the masktype procedure a little bit, expected bugs.
+#  MC_8 - HTH       - Problem with bantype's greater than 9.
+#  MC_8 - anonymous - Rewrote the nick filtering system, was still 
+#                     getting problems with special charactered nicks.
+#  MC_8 -           - Rewrote the masktype procedure a little bit, 
+#                     expected bugs.
 #
 # v1.1 (03.06.01)
-#  MC_8 - Strydor - Fixed special character problems with nicks (simular to Grafx-man's
-#                   findings.
-#  MC_8 - Upgraded SVS to v1.2
-#  MC_8 - Grafx-man - Every nick with a special character in there nick, such as "Bob}{Fox"
-#                     was being treated as if they were doing a flyby, even if they parted
+#  MC_8 - Strydor   - Fixed special character problems with nicks 
+#                     (simular to Grafx-man's findings.
+#  MC_8 -           - Upgraded SVS from v1.0 to v1.2
+#  MC_8 - Grafx-man - Every nick with a special character in there 
+#                     nick, such as "Bob}{Fox" was being treated as if 
+#                     they were doing a flyby, even if they parted 
 #                     after being on the channel for days on end.
 #
 # v1.0 (01.14.01)
@@ -39,28 +59,31 @@
 ##
 
 ##
+# Commands
+##
+# DCC:
+#  chanset <#channel> mc.antiflyby <time>
+#    Set time to the amount of seconds the user must must stay in the 
+#    specific channel before part'n.  If the user leaves after join'n 
+#    under the set seconds here, (s)he will be in contempt of a 
+#    'flyby'.  Setting this to 0 (default) will disable the script for 
+#    the particular channel.
+##
+
+##
 # Settings
 ##
 
-# Note:
-#  There is one setting you set from dcc chat with the bot using .chanset.
-#   antiflyby <time> This is the time in which they user must at least be in the
-#                    channel.  If the user partys under this time, he will be
-#                    considered as doing a flyby.  The time is in seconds.
-#                    Set the time to 0 (default) if you do not want flyby protection
-#                    on the particular channel.
-#
-#  Example from dcc chat with the bot:
-#   .chanset #channel antiflyby 3
+# What flagged users do you want to exempt from the script?
+# Set to "" to exempt no-one.
+# Flag format: <global>|<channel>
+set mc_afb(exempt) "b|"
 
-# Who do you want exempt from this?  Based off flags, <global>|<channel>
-set mc_afb(exempt) "nob|no"
-
-# How long do you want the user to be baned?
+# How long do you want the user to be banned?
 #  -1 == don't ban
 #   0 == server ban, not an actual ban entrie in the bot
-#  Any numbers above 0 are considered the number of min's the user
-#  is baned in the bot's banlist.  Put an ! infront of the number for
+#  Any number above 0 is considered the number of min's the user
+#  is banned in the bot's banlist.  Put an ! infront of the number for
 #  it to be a sticky ban, ie set mc_afb(ban) !30
 set mc_afb(ban) !240
 
@@ -75,398 +98,263 @@ set mc_afb(ban) !240
 #      7 - nick!*@host.domain
 #      8 - nick!*user@*.domain
 #      9 - nick!*@*.domain
-#     You can also specify a type of 10 to 19 which correspond to masks 0 to 9, but
-#     instead of using a * wildcard to replace portions of the host.domain, it uses ?
-#     wildcards to replace the numbers in the address.
+#     You can also specify a type of 10 to 19 which correspond to masks
+#     0 to 9.  But if the host.domain is a;
+#       hostname = Instead of using a * wildcard to replace portions of 
+#                  the host.domain, it replaces the numbers in the 
+#                  host.domain with a '?' (question mark) wildcard.
+#       ip       = It will mask as normal, with no '?' (question mark)
+#                  replacments as does hostname.
 set mc_afb(bant) 2
 
-# Do you want to tell the user anything via privmsg?
-# %chan will be replaced with the channel this is pertaning to.
-# set to "" if you do not want to /msg the user anything.
-set mc_afb(msg) "You have been baned from %chan for doing a flyby.  The ban will lift in 2 hours."
+# If a user in found in violation of a flyby, what do you want to tell 
+# that user?  The first word in this is the mothod in witch you want to 
+# get your message accross, either NOTICE or PRIVMSG.  Setting this to 
+# "" will disable this function.
+# Replacment veriables:
+#   %chan == The channel the flyby happened in.
+set mc_afb(msg) "PRIVMSG You have been banned from %chan for doing a flyby.  The ban will lift in 2 hours."
 
-# What's the reason for the ban?  This info will apear when pulling a .bans listing
-# in the bot, and as the kick message if the user comes back and he's still in the 
-# ban list.
+# What's the reason for the ban?  This info will apear when pulling a 
+# .bans listing in the bot, and as the kick message if the user comes 
+# back and he's still in the ban list.
 set mc_afb(reason) "Anti Flyby"
 
 
-## MC SVS (Script Version Server) v1.2 ##
-# Do you want the bot to connection to MC_8's SVS to see if there are newer versions
-# of this script avilable?  It will only tell you -- It's up to you to get the newest
-# version (I decided not to auto update the code, there may be new features in the
-# newest script that may require your attention).
-# 0=no/1=yes
+## MC SVS (Script Version Service) v2.0 ##
+# [0=no/1=yes] Do you want the bot to connection to MC_8's SVS to see
+# if there are newer versions of this script avilable?  It will only
+# tell you -- It's up to you to get the newest version (I decided not
+# to auto update the code, there may be new features in the newest
+# script that may require your attention).
 set mc_afb(svs:enabled) 1
 
 # Once a day the script will check with the SVS -- this specifies when
 # that should happen.  The setting should be the hour (military).
 # examples:
-#  set mc_afb(svs:check) 0  ;#This is at Midnight
-#  set mc_afb(svs:check) 5  ;#This is at 5am
+#  set mc_afb(svs:check) 0   ;#This is at Midnight
+#  set mc_afb(svs:check) 5   ;#This is at 5am
 #  set mc_afb(svs:check) 13  ;#This is at 1pm
 #  set mc_afb(svs:check) 23  ;#This is at 11pm
 set mc_afb(svs:check) 3
 
-# Upon finding a newer version, who do you want to notify via note?
-# Only the admin of the bot should really be worried about these notes,
-# there the ones that keep everything up to par on the bots.
-# Seperate each user with a " " (space).
+# Upon finding a newer version of this script, who do you want this
+# script to send a note to telling them of this newer version? If more
+# than 1 user is to be notified, seperate each user with a ' ' (space).
 set mc_afb(svs:notify) "MC_8"
 
-# Do you want even beta version notified to whomever you have set?  Or just
-# stable releases of the script?
+# Do you want even beta version notified to whomever you have set?  Or
+# just stable releases of the script?
 #  0 = Tell me about all version, even beta versions.
 #  1 = Just tell me about new stable versions.
 set mc_afb(svs:stableonly) 0
 
-##
 
 ##
-# Coding 
+# TCL Coding below, do not proceed.
 ##
-set mc_afb(version) v1.1.2
-set mc_afb(svs:script) "antiflyby 001001002000"
-set mc_afb(svs:server) "mc.purehype.net 8085"
 
-if {$numversion < "1050000"} {
- putlog "Anti Flyby $mc_afb(version) by MC_8 is for eggdrop 1.5+ series only."
- putlog "Anti Flyby $mc_afb(version) will not work with eggdrop $version."
- putlog "Anti Flyby $mc_afb(version) not loaded."
+#Script:mc_afb
+
+set mc_afb(script)      "Anti Flyby"
+set mc_afb(version)     "v2.0"
+set mc_afb(svs:script)  "antiflyby"
+set mc_afb(svs:version) "002000000000"
+set mc_afb(svs:server)  "mc.purehype.net"
+set mc_afb(svs:port)    "81"
+set mc_afb(svs:get)     "/"
+set mc_afb(svs:query)   "svs=$mc_afb(svs:script)&version=$mc_afb(svs:version)"
+
+if {$numversion < "1050500"} {
+ putlog "$mc_afb(script) $mc_afb(version) by MC_8 will only work on eggdrop 1.5.5 or greater."
+ putlog "$mc_afb(script) $mc_afb(version)  will not work with eggdrop $version."
+ putlog "$mc_afb(script) $mc_afb(version)  not loaded."
  return 1
-};setudef int antiflyby
+}
 
-bind join - * mc:afb:join
-proc mc:afb:join {nick uhost hand chan} {
- global mc_afb;set chan [string tolower $chan]
- if {[matchattr $hand $mc_afb(exempt) $chan] ||
-     ![set flyby [mc:afb:chanintinfo $chan antiflyby]]} {return 0}
- set mc_afb(!$nick:$chan) 1
- utimer $flyby "catch {unset mc_afb(![mc:afb:filt $nick:$chan])}"
+setudef int mc.antiflyby
+
+#v1.0
+proc mc:afb:error {bindproc error {arg ""}} {
+ global mc_afb version lastbind
+ putlog "Error in script $mc_afb(script) $mc_afb(version)."
+ putlog "        Last bind: $lastbind"
+ putlog "        Procedure: $bindproc"
+ putlog "             Args: $arg"
+ putlog "  Eggdrop version: $version"
+ putlog "      TCL version: [info tclversion]"
+ putlog "*** Please tell MC_8 about this BUG!  Visit        "
+ putlog "*** http://mc.purehype.net:81/bugzilla/ to do so.  "
+ putlog "*** Please include the next line in the bug report."
+ error $error
+}
+
+proc mc:afb:errchk {command arg} {
+ if {[catch {eval $command $arg} return]} {
+  mc:afb:error $command $return $arg; return 0
+ }; return $return
 }
 
 bind part - * mc:afb:part
 proc mc:afb:part {nick uhost hand chan {msg ""}} {
- global mc_afb;set chan [string tolower $chan]
- if {![info exists mc_afb(!$nick:$chan)] ||
-     ![mc:afb:chanintinfo $chan antiflyby]} {return 0}
- catch {unset mc_afb(!$nick:$chan)};mc:afb:inter:punish $nick $uhost $chan
+ return [mc:afb:errchk mc:afb:part_ [list $nick $uhost $hand $chan $msg]]
 }
-
-bind nick - * mc:afb:nick
-proc mc:afb:nick {nick uhost hand chan newnick} {
- global mc_afb;set chan [string tolower $chan]
- if {![info exists mc_afb(!$nick:$chan)] ||
-     ![set flyby [mc:afb:chanintinfo $chan antiflyby]]} {return 0}
- foreach timer [utimers] {
-  if {[string match "*unset mc_afb(!$nick:$chan)*" $timer]} {
-   set flyby [lindex $timer 0];killutimer [lindex $timer 2];break
-  }
- }
- set mc_afb(!$newnick:$chan) 1
- utimer $flyby "catch {unset mc_afb(![mc:afb:filt $newnick:$chan])}"
- catch {unset mc_afb(!$nick:$chan)}
-}
-
-proc mc:afb:inter:punish {nick uhost chan} {
+proc mc:afb:part_ {nick uhost hand chan {msg ""}} {
  global mc_afb
- set ban [mc:afb:inter:masktype $nick!$uhost $mc_afb(bant)]
- if {$mc_afb(reason) == ""} {set reason "Anti Flyby"} {set reason $mc_afb(reason)}
- set flag 0
- if {[string index $mc_afb(ban) 0] == "!"} {
-  set opt "sticky";set ban_o [string range $mc_afb(ban) 1 e]
- } {set opt "none";set ban_o $mc_afb(ban)}
- if {!$ban_o} {
-  pushmode $chan +b $ban;set flag 1
- } elseif {$ban_o > 0} {
-  newchanban $chan $ban Anti-Flyby $reason $ban_o $opt
-  set flag 1
- };if {[onchan $nick $chan]} {putkick $chan $nick $reason;incr flag 2}
- if {$mc_afb(msg) != ""} {
-  puthelp "PRIVMSG $nick :[mc:afb:inter:replace $mc_afb(msg) "%chan $chan"]"
-  incr flag 4
+ set temp(:cache:time) [mc:afb:chanint $chan mc.antiflyby]
+ set temp(:cache:botisop) [botisop $chan]
+ if {(!$temp(:cache:time)) || (!$temp(:cache:botisop)) ||
+     ([expr [clock seconds]-[getchanjoin $nick $chan]] > $temp(:cache:time)) ||
+     (([matchattr $hand $mc_afb(exempt) $chan]) && ($mc_afb(exempt) != ""))} {return 0}
+ set banmask [mc:afb:masktype $nick!$uhost $mc_afb(bant)]
+ if {$mc_afb(reason) == ""} {set reason "Anti Flyby"} else {set reason $mc_afb(reason)}
+ if {[string match !* $mc_afb(ban)]} {set option "sticky"} else {set option "none"}
+ set actions ""
+ set temp(:cache:stl_ban) [string trimleft $mc_afb(ban) !]
+ if {$temp(:cache:stl_ban) > "-1"} {
+  set i 0
+  if {$temp(:cache:stl_ban) > "0"} {
+   newchanban $chan $banmask Anti-Flyby $reason %temp(:cache:stl_ban) $option; set i 1
+  }
+  if {$temp(:cache:botisop)} {putserv "MODE $chan +b $banmask"; set i 1}
+  if {$i} {lappend actions "banned $banmask"}
  }
- switch -- $flag {
-  7 {putlog "Anti Flyby:  Banned $nick ($ban) on $chan.  Kicking and messaging user as well."}
-  6 {putlog "Anti Flyby:  Kicking and messaging $nick for doing a flyby on $chan."}
-  5 {putlog "Anti Flyby:  Banned $nick ($ban) on $chan.  Also messaged $nick about the flyby."}
-  4 {putlog "Anti Flyby:  Messaged $nick about the his/her flyby in $chan."}
-  3 {putlog "Anti Flyby:  Banned $nick ($ban) on $chan.  User still in channel, kicking..."}
-  2 {putlog "Anti Flyby:  Kicking $nick from $chan."}
-  1 {putlog "Anti Flyby:  Banned $nick ($ban) on $chan."}
-  0 {putlog "Anti Flyby:  $nick was detected doing a flyby on $chan... for some reason I didn't do anything about it."    }
+ set temp(:cache:method) [string toupper [lindex [split $mc_afb(msg) " "] 0]]
+ set temp(:cache:msg) [join [lrange [split $mc_afb(msg) " "] 1 end] " "]
+ if {[regexp -- {^(NOTICE|PRIVMSG)$} $temp(:cache:method)]} {
+  set temp(:cache:msg) [mc:afb:replace $temp(:cache:msg) [list %chan $chan]]
+  puthelp "$temp(:cache:method) $nick :$temp(:cache:msg)"
+  lappend actions "$temp(:cache:method)'d $nick"
  }
+ if {$actions == ""} {lappend actions "nothing done"} 
+ putlog "$mc_afb(script):  Detected flyby from $nick for $chan;  [join $actions ", "]"
 }
 
-## Moretools masktype
-proc mc:afb:inter:masktype {uhost type} {
- if {![string match "*!*@*.*" $uhost]} {
-  set nick [lindex [split $uhost "!"] 0]
-  if {$nick == ""} {
-   set uhost [string range $uhost [expr [string first ! $uhost]+1] e]
-   foreach chan [channels] {
-    set nick [lindex [mc:afb:inter:findchanuser *$uhost* $chan] 0]
-    if {$nick != ""} {break}
-   }
-   if {$nick == ""} {set uhost $nick!} {set uhost "$nick![gethost $nick]"}
-  }
-  if {$uhost == "$nick!" || $nothing} {set type "return_nothing"}
- }
- switch -exact $type {
-  0 {set ban "*[string range $uhost [string first ! $uhost] e]"}
-  1 {set ban "*!*[string trimleft [string range $uhost [expr [string first ! $uhost]+1] e] "~"]"}
-  2 {set ban "*!*[string range $uhost [string first @ $uhost] e]"}
-  3 {
-   set ident [string range $uhost [expr [string first ! $uhost]+1] [expr [string last @ $uhost]-1]]
-   set ban "*!*[string trimleft $ident "~"][string range [maskhost $uhost] [string first @ [maskhost $uhost]] e]"
-  }
-  4 {set ban "*!*[string range [maskhost $uhost] [string last "@" [maskhost $uhost]] e]"}
-  5 {set ban $uhost}
-  6 {
-   set nick [string range $uhost 0 [expr [string first "!" $uhost]-1]]
-   set ident [string range $uhost [expr [string first "!" $uhost]+1] [expr [string last "@" $uhost]-1]]
-   set ban "$nick!*[string trimleft $ident "~"][string range $uhost [string last "@" $uhost] e]"
-  }
-  7 {
-   set nick [string range $uhost 0 [expr [string first "!" $uhost]-1]]
-   set ban "$nick!*[string range $uhost [string last "@" $uhost] e]"
-  }
-  8 {
-   set nick [string range $uhost 0 [expr [string first "!" $uhost]-1]]
-   set ident [string range $uhost [expr [string first "!" $uhost]+1] [expr [string last "@" $uhost]-1]]
-   set ban "$nick!*[string trimleft $ident "~"][string range [maskhost $uhost] [string last "@" [maskhost $uhost]] e]"
-  }
-  9 {
-   set nick [string range $uhost 0 [expr [string first "!" $uhost]-1]]
-   set ban "$nick!*[string range [maskhost $uhost] [string last "@" [maskhost $uhost]] e]"
-  }
-  10 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
-    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
-    set ident [string range $uhost [expr [string first "!" $uhost]+1] [expr [string last "@" $uhost]-1]]
-    set ban "*!$ident$host"
-   } {set ban [mc:afb:inter:masktype $uhost 0]}
-  }
-  11 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
-    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
-    set ident [string range $uhost [expr [string first "!" $uhost]+1] [expr [string last "@" $uhost]-1]]
-    set ban "*!*[string trimleft $ident "~"]$host"
-   } {set ban [mc:afb:inter:masktype $uhost 1]}
-  }
-  12 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
-    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
-    set ban "*!*$host"
-   } {set ban [mc:afb:inter:masktype $uhost 2]}
-  }
-  13 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {set ban [mc:afb:inter:masktype $uhost 11]} {set ban [mc:afb:inter:masktype $uhost 3]}
-  }
-  14 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {set ban [mc:afb:inter:masktype $uhost 12]} {set ban [mc:afb:inter:masktype $uhost 4]}
-  }
-  15 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
-    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
-    set rest [string range $uhost 0 [expr [string last "@" $uhost]-1]]
-    set ban $rest$host
-   } {set ban [mc:afb:inter:masktype $uhost 5]}
-  }
-  16 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
-    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
-    set rest "[string range $uhost 0 [expr [string first "!" $uhost]-1]]!*[string trimleft [string range $uhost [expr [string first "!" $uhost]+1] [expr [string last "@" $uhost]-1]] "~"]"
-    set ban $rest$host
-   } {set ban [mc:afb:inter:masktype $uhost 6]}
-  }
-  17 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {
-    set host [mc:afb:inter:replace $host "1 ? 2 ? 3 ? 4 ? 5 ? 6 ? 7 ? 8 ? 9 ? 0 ?"]
-    set rest "[string range $uhost 0 [expr [string first "!" $uhost]-1]]!*"
-    set ban $rest$host 
-   } {set ban [mc:afb:inter:masktype $uhost 7]}
-  }
-  18 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {set ban [mc:afb:inter:masktype $uhost 16]} {set ban [mc:afb:inter:masktype $uhost 8]}
-  }
-  19 {
-   set host [string range $uhost [string last "@" $uhost] e]
-   if {[mc:afb:inter:findip [string range $host 1 e]] == "0"} {set ban [mc:afb:inter:masktype $uhost 17]} {set ban [mc:afb:inter:masktype $uhost 9]}
-  }
-  return_nothing {set ban ""}
-  default {set ban "*!*[string range $uhost [string first "@" $uhost] e]"}
- }
- set _nick [lindex [split $ban !] 0]
- set _ident [string range $ban [expr [string first ! $ban]+1] [expr [string last @ $ban]-1]]
- set _host [string range $ban [expr [string last @ $ban]+1] e]
- if {$_ident != [set temp [string range $_ident [expr [string length $_ident]-9] e]]} {
-  set _ident *[string trimleft $temp *]
- }
- if {$_host != [set temp [string range $_host [expr [string length $_host]-63] e]]} {
-  set _host *[string trimleft $temp *]
- } ; return $_nick!$_ident@$_host
-}
-proc mc:afb:inter:replace {string subs} {
- if {[llength $subs] == "1"} {set subs [lindex $subs 0]}
+# v1.1
+proc mc:afb:replace {text subs} {
+ if {![catch {string map -nocase $subs $text} output]} {return $output}
  for {set i 0} {[lindex $subs $i] != ""} {incr i 2} {
-  regsub -all -- [lindex $subs $i] $string [lindex $subs [expr $i+1]] string
- } ; return $string
-}
-proc mc:afb:inter:findchanuser {hostmask channel} {
- if {![validchan $channel]} {return -code error "no such channel record"} ; set buffer ""
- set hostmask [string tolower $hostmask]
- foreach user [chanlist $channel] {
-  if {[string match $hostmask [string tolower $user![getchanhost $user $channel]]]} {
-   append buffer " $user"
-  }
- };return [string range $buffer] 1 e]
-}
-proc mc:afb:inter:findip {args} {
- catch {unset mc_found_ip}
- if {![string match *.*.*.* $args]} {return 0}
- foreach arg $args {
-  if {[string match *.*.*.* $arg]} {
-   set mc_testa [split $arg "."] ; set i 0
-   while {[llength $mc_testa] != $i} {
-    set mc_test [lrange $mc_testa $i end]
-    if {[string length [lindex $mc_test 1]]<4 && [string length [lindex $mc_test 2]]<4} {
-     if {[lindex $mc_test 1] < 256 && [lindex $mc_test 2] < 256 && [lindex $mc_test 1] >= 0 && [lindex $mc_test 2] >= 0} {
-      set first "abcdefghi"
-      if {[string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 1]] <= 9 && [string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 1]] >= 0} {
-       set first [string range [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 1] end]
-       if {[string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 2]] <= 9 && [string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 2]] >= 0} {
-        set first [string range [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 2] end]
-        if {[string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 3]] <= 9 && [string index [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 3]] >= 0} {
-         set first [string range [lindex $mc_test 0] [expr [string length [lindex $mc_test 0]] - 3] end]
-        }
-       }
-      }
-      set second [lindex $mc_test 1] ; set third [lindex $mc_test 2] ; set fourth "abcdefghi"
-      if {[string index [lindex $mc_test 3] 0] <= 9 && [string index [lindex $mc_test 3] 0] >= 0} {
-       set fourth [string index [lindex $mc_test 3] 0]
-       if {[string index [lindex $mc_test 3] 1] <= 9 && [string index [lindex $mc_test 3] 1] >= 0} {
-        set fourth $fourth[string index [lindex $mc_test 3] 1]
-        if {[string index [lindex $mc_test 3] 2] <= 9 && [string index [lindex $mc_test 3] 2] >= 0} {
-         set fourth $fourth[string index [lindex $mc_test 3] 2]
-        }
-       }
-      }
-      if {($first < 256) && ($second < 256) && ($third < 256) &&
-          ($fourth < 256) && ($first > 0) && ($second > 0) &&
-          ($third > 0) && ($fourth > 0) && ([string index $first 0] > 0) &&
-          ([string index $second 0] > 0) && ([string index $third 0] > 0) &&
-          ([string index $fourth 0] > 0)} {
-       if {[info exists mc_found_ip]} {
-        set mc_found_ip "$mc_found_ip $first.$second.$third.$fourth"
-       } {set mc_found_ip $first.$second.$third.$fourth}
-      }
-     }
-    } ; incr i +1
-   }
-  }
- } ; if {[info exists mc_found_ip]} {return $mc_found_ip} {return 0}
-}
-## ^
-
-## sindex procedures (by MC_8 & guppy)
-proc mc:afb:slength {str} {return [llength $str]}
-proc mc:afb:sindex {str index} {return [lindex [split $str] $index]}
-proc mc:afb:srange {str s e} {return [lrange [split $str] $s $e]}
-proc mc:afb:filt {data} {
- return [join [split [join [split [join [split [join [split [join [split [join [split $data \\] \\\\] \[] \\\[] \]] \\\]] \}] \\\}] \{] \\\{] \"] \\\"]
-}
-proc mc:afb:unfilt {data} {
- regsub -all -- \\\\\\\[ $data \[ data;regsub -all -- \\\\\\\] $data \] data;regsub -all -- \\\\\\\} $data \} data
- regsub -all -- \\\\\\\{ $data \{ data;regsub -all -- \\\\\\\" $data \" data;regsub -all -- \\\\\\\\ $data \\ data;return $data
-}
-## sindex end
-
-proc mc:afb:chanflagison {chan flag} {
- foreach info [string tolower [channel info [string tolower $chan]]] {
-  if {[string range $info 1 e] == [string tolower $flag]} {
-   if {[string index $info 0] == "-"} {
-    return 0
-   } elseif {[string index $info 0] == "+"} {
-    return 1
-   } else {return 2}
-  }
- };return -1
+  regsub -all -- {([\\\*\+\?\{\}\,\(\)\:\[\]\.\^\$\=\!\|])} [lindex $subs $i] {\\\1} temp(temp)
+  regsub -all -- $temp(temp) $text [lindex $subs [expr $i+1]] text
+ }; return $text
 }
 
-## chanintinfo
-proc mc:afb:chanintinfo {chan flag} {
- foreach info [string tolower [channel info $chan]] {
-  if {[lindex $info 0] == [string tolower $flag]} {
-   return [mc:afb:srange $info 1 e]
-  }
- };return ""
+# v1.0
+proc mc:afb:masktype {hostmask type} {
+ set ident_max-length 9
+ set host_max-length 63
+ scan $hostmask {%[^!]!%[^@]@%s} nick ident host
+ set maskhost 1
+ if {[regexp -- {^1[0-9]$} $type]} {
+  if {!([regexp -- {^([0-9][0-9]?[0-9]?)\.([0-9][0-9]?[0-9]?)\.([0-9][0-9]?[0-9]?)\.([0-9][0-9]?[0-9]?)$} $host temp a b c d] && ($a > 0 && $a < 255 && $b < 255 && $c < 255 && $d < 255))} {
+   regsub -all {[0-9]} $host "?" host
+   set maskhost 0
+  };set type [string index $type 1]
+ }
+ if {[regexp -- {^[0-4]$} $type]} {set nick "*"}
+ if {[regexp -- {^[2479]$} $type]} {set ident "*"}
+ if {[regexp -- {^[1368]$} $type]} {set ident "*[string trimleft $ident ~]"}
+ if {[regexp -- {^[3489]$} $type]} {if {$maskhost} {scan [maskhost $host] {%[^@]@%s} temp host}}
+ if {[string length $ident] > ${ident_max-length}} {
+  set ident "*[string range $ident [expr [string length $ident]-${ident_max-length}] end]"
+ }
+ if {[string length $host] > ${host_max-length}} {
+  set host "*[string range $host [expr [string length $host]-${host_max-length}] end]"
+ }; return [format "%s!%s@%s" $nick $ident $host]
 }
-## ^
 
+# v2.0
+proc mc:afb:chanint {channel int} {
+ set cache(chaninfo) [string tolower [channel info $channel]]
+ regsub -all -- {([\\\{\}\[\]\"])} [string tolower $int] {\\\1} int
+ if {[set temp(i) [lsearch -glob $cache(chaninfo) "$int *"]] == "-1"} {return -1}
+ return [lindex [split [lindex $cache(chaninfo) $temp(i)] " "] 1]
+}
+
+## SVS v2.0
+if {(![info exists mc_afb(svs:enabled)]) ||
+    (![regexp -- {^(0|1)$} $mc_afb(svs:enabled)])} {set mc_afb(svs:enabled) 0}
+if {(![info exists mc_afb(svs:check)]) ||
+    ([regexp -- {[^0-9]} $mc_afb(svs:check)])} {set mc_afb(svs:check) 0}
+if {![info exists mc_afb(svs:notify)]} {set mc_afb(svs:notify) $owner}
+if {(![info exists mc_afb(svs:stableonly)]) ||
+    (![regexp -- {^(0|1)$} $mc_afb(svs:stableonly)])} {set mc_afb(svs:stableonly) 0}
+foreach bind [binds mc:afb:svs:time] {
+ unbind [lindex $bind 0] [lindex $bind 1] [lindex $bind 2] [lindex $bind 4]
+}
+foreach command [info commands mc:afb:svs:time] {rename $command ""}
 if {$mc_afb(svs:enabled)} {
  if {($mc_afb(svs:check) > "23") || ($mc_afb(svs:check) < "0")} {set mc_afb(svs:check) 00}
  if {[string length $mc_afb(svs:check)] == "1"} {set mc_afb(svs:check) 0$mc_afb(svs:check)}
- if {$mc_afb(svs:stableonly)} {
-  set mc_afb(svs:script) [string range $mc_afb(svs:script) 0 [expr [string length $mc_afb(svs:script)]-4]]999
- }
- catch {unbind time - "00 $mc_afb(svs:oldcheck) * * *" mc:afb:svs:time}
- set mc_afb(svs:oldcheck) $mc_afb(svs:check)
- bind time - "00 $mc_afb(svs:check) * * *" mc:afb:svs:time
- proc mc:afb:svs:time {min hour day month year} {
+ bind time - "00 $mc_afb(svs:check) *" mc:afb:svs:time
+ proc mc:afb:svs:time {{args ""}} {
   global mc_afb
-  catch {control [connect [lindex $mc_afb(svs:server) 0] [lindex $mc_afb(svs:server) 1]] mc:afb:svs:interface}
+  if {[catch {socket -async $mc_afb(svs:server) $mc_afb(svs:port)} sid]} {;\
+   putlog "SVS Error\[$mc_afb(svs:script)/$mc_afb(svs:version)\]:  $sid"
+   return 1
+  }
+  fconfigure $sid -blocking 0 -buffering line
+  set tout [after 60000 "mc:afb:svs:interface $sid timeout"]
+  fileevent $sid readable "mc:afb:svs:interface $sid $tout"
+  puts $sid "GET $mc_afb(svs:get)?$mc_afb(svs:query) HTTP/1.0\
+           \nHost: $mc_afb(svs:server)\n"
+  flush $sid
  }
 }
-proc mc:afb:svs:interface {idx args} {
- global mc_afb;set args [join $args]
- switch -- [lindex $args 0] {
-  "" {return 1}
-  000 {putdcc $idx q}
-  002 {putdcc $idx [lindex $mc_afb(svs:script) 0]}
-  003 {
-   set args [lrange $args 1 e]
-   if {[lindex $args 0] != [lindex $mc_afb(svs:script) 0]} {return 0}
-   putdcc $idx q
-   if {[lindex $args 1] > [lindex $mc_afb(svs:script) 1]} {
-    set note [mc:afb:svs:replace [lindex $args 7] "%0 {[lindex $args 0]} %1 {[lindex $args 1]} %2 {[lindex $args 2]}"]
-    set note [mc:afb:svs:replace $note "%3 {[lindex $args 3]} %4 {[lindex $args 4]} %5 {[lindex $args 5]}"]
-    set note [mc:afb:svs:replace $note "%6 {[lindex $args 6]} %8 {[lindex $args 8]} %version {$mc_afb(version)}"]
-    set note [mc:afb:svs:replace $note "%9 {[lindex $args 9]} %10 {[lindex $args 10]} %11 {[lindex $args 11]}"]
-    set note [mc:afb:svs:replace $note "%12 {[lindex $args 12]} %13 {[lindex $args 13]} %14 {[lindex $args 14]}"]
-    set note [mc:afb:svs:replace $note "%15 {[lindex $args 15]} %16 {[lindex $args 16]} %17 {[lindex $args 17]}"]
-    set note [mc:afb:svs:replace $note "%18 {[lindex $args 18]} %19 {[lindex $args 19]} %20 {[lindex $args 20]}"]
-    foreach notify [join [split $mc_afb(svs:notify) ",;"]] {
-     set outnote [mc:afb:svs:replace $note "%nick {$notify}"]
-     if {[string match "*$outnote*" "[notes $notify -[notes $notify]]"]} {
-      set cont 0
-      foreach unote [notes $notify -[notes $notify]] {
-       if {$outnote == [lindex $unote 2]} {set cont 1;break}
-      };if {$cont} {continue}
-     }
-     switch -- [sendnote SVS $notify $outnote] {
-      0 {putlog "MC SVS for [lindex $mc_afb(svs:script) 0] had some errors updating $notify on current version of script; unknown reason!"}
-      3 {putlog "MC SVS for [lindex $mc_afb(svs:script) 0] had some errors updating $notify on current version of script; notebox too full!"}
+proc mc:afb:svs:interface {sid tout} {
+ global mc_afb
+ if {$tout == "timeout"} {
+  putlog "SVS Warning\[$mc_afb(svs:script)/$mc_afb(svs:version)\]:  SVS Server timed out."
+  close $sid
+  return 0
+ }; after cancel $tout
+ set temp 0
+ while {![eof $sid]} {
+  gets $sid get
+  if {$temp < "2"} {
+   if {$get == ""} {incr temp; if {$temp == "1"} {set temp 2}}
+   continue
+  }; if {$get == ""} {continue}
+  switch -- [lindex $get 0] {
+   003 {
+    set reply [lrange $get 1 end]
+    if {[lindex $reply 0] != $mc_afb(svs:script)} {
+     putlog "SVS Error\[$mc_afb(svs:script)/$mc_afb(svs:version)\]:  SVS Server sent wrong info, got [lindex $reply 0]"
+     break   
+    }
+    if {$mc_afb(svs:stableonly)} {
+     set temp [string range $mc_afb(svs:version) 0 8]999
+    } else {set temp [string range $mc_afb(svs:version) 0 11]}
+    if {[lindex $reply 1] > $temp} {
+     set note [lindex $reply 5]
+     regsub -- %0 $note [lindex $reply 0] note
+     regsub -- %1 $note [lindex $reply 1] note
+     regsub -- %2 $note [lindex $reply 2] note
+     regsub -- %3 $note [lindex $reply 3] note
+     regsub -- %4 $note [lindex $reply 4] note
+     regsub -- %version $note $mc_afb(version) note
+     foreach to [split $mc_afb(svs:notify) ",; "] {
+      if {$to == ""} {continue}
+      regsub -- %nick $note $to outnote
+      if {[string match *$outnote* [set unotes [notes $to -[notes $to]]]]} {
+       set temp 0
+       foreach unote $unotes {
+        if {$outnote == [lindex $unote 2]} {set temp 1; break}
+       }; if {$temp} {continue}
+      }
+      switch -- [sendnote SVS $to $outnote] {
+       0 {
+        if {![validuser $notify]} {set x "invalid user"} else {set x "unknown error"}
+        putlog "SVS Error\[$mc_afb(svs:script)/$mc_afb(svs:version)\]:  Trying to send note to $to, $x."
+       }
+       3 {putlog "SVS Error\[$mc_afb(svs:script)/$mc_afb(svs:version)\]:  Trying to send note to $to, notebox too full!"}
+      }
      }
     }
    }
   }
- };return 0
+ }; close $sid
 }
-proc mc:afb:svs:replace {string subs} {
- if {[llength $subs] == "1"} {set subs [lindex $subs 0]}
- for {set i 0} {[lindex $subs $i] != ""} {incr i 2} {
-  regsub -all -- [lindex $subs $i] $string [lindex $subs [expr $i+1]] string
- } ; return $string
-}
+## ^
 
-putlog "Anti Flyby $mc_afb(version) by MC_8 loaded."
+putlog "$mc_afb(script) $mc_afb(version) by MC_8 loaded."
