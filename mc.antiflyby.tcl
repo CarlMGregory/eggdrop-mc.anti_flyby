@@ -1,7 +1,6 @@
 ##
-# Anti Flyby v1.0 by by MC_8 - Carl M. Gregory <gregory@worldinter.net>
-#
-# This script will only work on eggdrop 1.5+ series.
+# Anti Flyby v1.1 by by MC_8 - Carl M. Gregory <gregory@worldinter.net>
+#  This script will only work on eggdrop 1.5+ series.
 #
 # My SVS Website - http://mc.purehype.net/
 ##
@@ -17,6 +16,14 @@
 
 ##
 # History
+##
+# v1.1 (03.06.01)
+#  MC_8 - Strydor - Fixed special character problems with nicks (simular to Grafx-man's
+#                   findings.
+#  MC_8 - Upgraded SVS to v1.2
+#  MC_8 - Grafx-man - Every nick with a special character in there nick, such as "Bob}{Fox"
+#                     was being treated as if they were doing a flyby, even if they parted
+#                     after being on the channel for days on end.
 #
 # v1.0 (01.14.01)
 #  MC_8 - M` - Inital Release.
@@ -46,7 +53,7 @@ set mc_afb(exempt) "nob|no"
 #  Any numbers above 0 are considered the number of min's the user
 #  is baned in the bot's banlist.  Put an ! infront of the number for
 #  it to be a sticky ban, ie set mc_afb(ban) !30
-set mc_afb(ban) 0
+set mc_afb(ban) !240
 
 # Set this to the ban mask type you what,
 #      0 - *!user@host.domain
@@ -74,7 +81,7 @@ set mc_afb(msg) "You have been baned from %chan for doing a flyby.  The ban will
 # ban list.
 set mc_afb(reason) "Anti Flyby"
 
-## MC SVS (Script Version Server) v1.1 ##
+## MC SVS (Script Version Server) v1.2 ##
 # Do you want the bot to connection to MC_8's SVS to see if there are newer versions
 # of this script avilable?  It will only tell you -- It's up to you to get the newest
 # version (I decided not to auto update the code, there may be new features in the
@@ -92,17 +99,24 @@ set mc_afb(svs:enabled) 1
 set mc_afb(svs:check) 3
 
 # Upon finding a newer version, who do you want to notify via note?
+# Only the admin of the bot should really be worried about these notes,
+# there the ones that keep everything up to par on the bots.
 # Seperate each user with a " " (space).
 set mc_afb(svs:notify) "MC_8"
 
+# Do you want even beta version notified to whomever you have set?  Or just
+# stable releases of the script?
+#  0 = Tell me about all version, even beta versions.
+#  1 = Just tell me about new stable versions.
+set mc_afb(svs:stableonly) 0
 
 ##
 
 ##
 # Coding 
 ##
-set mc_afb(version) v1.0
-set mc_afb(svs:script) "antiflyby 001000000000"
+set mc_afb(version) v1.1
+set mc_afb(svs:script) "antiflyby 001001000000"
 set mc_afb(svs:server) "mc.purehype.net 8085"
 
 if {$numversion < "1050000"} {
@@ -117,34 +131,34 @@ proc mc:afb:join {nick uhost hand chan} {
  global mc_afb;set chan [string tolower $chan]
  if {[matchattr $hand $mc_afb(exempt) $chan]} {return}
  foreach info [channel info $chan] {
-  if {[lindex $info 0] == "antiflyby"} {if {![set flyby [lindex $info 1]]} {return}}
- };set mc_afb(!$nick:$chan) 1;utimer $flyby "catch {unset mc_afb(!$nick:$chan)}"
+  if {[lindex $info 0] == "antiflyby"} {if {![set flyby [lindex $info 1]]} {return};break}
+ };set mc_afb(![mc:afb:filt $nick:$chan]) 1;utimer $flyby "unset mc_afb(![mc:afb:filt [mc:afb:filt $nick:$chan]])"
 }
 
 bind part - * mc:afb:part
 proc mc:afb:part {nick uhost hand chan {msg ""}} {
  global mc_afb;set chan [string tolower $chan]
- if {![info exists mc_afb(!$nick:$chan)]} {return}
+ if {![info exists mc_afb(![mc:afb:filt $nick:$chan])]} {return}
  foreach info [channel info $chan] {
-  if {[lindex $info 0] == "antiflyby"} {if {![set flyby [lindex $info 1]]} {return}}
- };unset mc_afb(!$nick:$chan);mc:afb:inter:punish $nick $uhost $chan
+  if {[lindex $info 0] == "antiflyby"} {if {![set flyby [lindex $info 1]]} {return};break}
+ };unset mc_afb(![mc:afb:filt [mc:afb:filt $nick:$chan]]);mc:afb:inter:punish $nick $uhost $chan
 }
 
 bind nick - * mc:afb:nick
 proc mc:afb:nick {nick uhost hand chan newnick} {
  global mc_afb;set chan [string tolower $chan]
- if {![info exists mc_afb(!$nick:$chan)]} {return}
+ if {![info exists mc_afb(![mc:afb:filt $nick:$chan])]} {return}
  foreach info [channel info $chan] {
-  if {[lindex $info 0] == "antiflyby"} {if {![set flyby [lindex $info 1]]} {return}}
+  if {[lindex $info 0] == "antiflyby"} {if {![set flyby [lindex $info 1]]} {return};break}
  }
  foreach timer [utimers] {
-  if {[string match "*unset mc_afb(!$nick:$chan)*" $timer]} {
+  if {[string match "*unset mc_afb(![mc:afb:filt $nick:$chan])*" $timer]} {
    set flyby [lindex $timer 0];killutimer [lindex $timer 2];break
   }
  }
- set mc_afb(!$newnick:$chan) 1
- utimer $flyby "catch {unset mc_afb(!$nick:$chan)}"
- catch {unset mc_afb(!$nick:$chan)}
+ set mc_afb(![mc:afb:filt $newnick:$chan]) 1
+ utimer $flyby "catch {unset mc_afb(![mc:afb:filt [mc:afb:filt $newnick:$chan]])}"
+ catch {unset mc_afb(![mc:afb:filt [mc:afb:filt $nick:$chan]])}
 }
 
 proc mc:afb:inter:punish {nick uhost chan} {
@@ -302,9 +316,29 @@ proc mc:afb:inter:masktype {uhost type} {
  } ; return $_nick!$_ident@$_host
 }
 
+proc mc:afb:filt {data} {
+ regsub -all -- \\\\ $data \\\\\\\\ data ; regsub -all -- \\\[ $data \\\\\[ data ; regsub -all -- \\\] $data \\\\\] data
+ regsub -all -- \\\} $data \\\\\} data ; regsub -all -- \\\{ $data \\\\\{ data ; regsub -all -- \\\" $data \\\\\" data ; return $data
+}
+
+proc mc:afb:unfilt {data} {
+ regsub -all -- \\\\\\\\ $data \\ data
+ regsub -all -- \\\\\\\[ $data \[ data
+ regsub -all -- \\\\\\\] $data \] data
+ regsub -all -- \\\\\} $data \} data
+ regsub -all -- \\\\\{ $data \{ data
+ regsub -all -- \\\\\" $data \" data
+ return $data
+}
+
 if {$mc_afb(svs:enabled)} {
  if {($mc_afb(svs:check) > "23") || ($mc_afb(svs:check) < "0")} {set mc_afb(svs:check) 00}
  if {[string length $mc_afb(svs:check)] == "1"} {set mc_afb(svs:check) 0$mc_afb(svs:check)}
+ if {$mc_afb(svs:stableonly)} {
+  set mc_afb(svs:script) [string range $mc_afb(svs:script) 0 [expr [string length $mc_afb(svs:script)]-4]]999
+ }
+ catch {unbind time - "00 $mc_afb(svs:oldcheck) * * *" mc:afb:svs:time}
+ set mc_afb(svs:oldcheck) $mc_afb(svs:check)
  bind time - "00 $mc_afb(svs:check) * * *" mc:afb:svs:time
  proc mc:afb:svs:time {min hour day month year} {
   global mc_afb
@@ -320,6 +354,7 @@ proc mc:afb:svs:interface {idx args} {
   003 {
    set args [lrange $args 1 e]
    if {[lindex $args 0] != [lindex $mc_afb(svs:script) 0]} {return 0}
+   putdcc $idx q
    if {[lindex $args 1] > [lindex $mc_afb(svs:script) 1]} {
     set note [mc:afb:svs:replace [lindex $args 7] "%0 {[lindex $args 0]} %1 {[lindex $args 1]} %2 {[lindex $args 2]}"]
     set note [mc:afb:svs:replace $note "%3 {[lindex $args 3]} %4 {[lindex $args 4]} %5 {[lindex $args 5]}"]
@@ -329,14 +364,21 @@ proc mc:afb:svs:interface {idx args} {
     set note [mc:afb:svs:replace $note "%15 {[lindex $args 15]} %16 {[lindex $args 16]} %17 {[lindex $args 17]}"]
     set note [mc:afb:svs:replace $note "%18 {[lindex $args 18]} %19 {[lindex $args 19]} %20 {[lindex $args 20]}"]
     foreach notify [join [split $mc_afb(svs:notify) ",;"]] {
-     switch -- [sendnote SVS $notify [mc:afb:svs:replace $note "%nick {$notify}"]] {
+     set outnote [mc:afb:svs:replace $note "%nick {$notify}"]
+     if {[string match "*$outnote*" "[notes $notify -[notes $notify]]"]} {
+      set cont 0
+      foreach unote [notes $notify -[notes $notify]] {
+       if {$outnote == [lindex $unote 2]} {set cont 1;break}
+      };if {$cont} {continue}
+     }
+     switch -- [sendnote SVS $notify $outnote] {
       0 {putlog "MC SVS for [lindex $mc_afb(svs:script) 0] had some errors updating $notify on current version of script; unknown reason!"}
       3 {putlog "MC SVS for [lindex $mc_afb(svs:script) 0] had some errors updating $notify on current version of script; notebox too full!"}
      }
     }
-   } ; putdcc $idx q
+   }
   }
- } ; return 0
+ };return 0
 }
 proc mc:afb:svs:replace {string subs} {
  if {[llength $subs] == "1"} {set subs [lindex $subs 0]}
